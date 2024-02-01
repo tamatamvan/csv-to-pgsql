@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io/fs"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/joho/godotenv"
+	"github.com/jackc/pgx/v5"
 )
 
 func getCSVsFromDir(dir string) []fs.DirEntry {
@@ -39,6 +43,21 @@ func readCSVinDir(dir string) {
 		fmt.Println("Columns: ", columns)
 		fmt.Println("Data: ", data)
 	}
+
+}
+
+func init() {
+	godotenv.Load(".env")
+	fmt.Println("Reading .env file")
+
+	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		os.Exit(1)
+	}
+	defer conn.Close(context.Background())
+
+	fmt.Println(greeting)
 
 }
 
