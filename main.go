@@ -46,6 +46,23 @@ func readCSVinDir(dir string) {
 
 }
 
+func createTable(tableName string, columns []string) {
+	// check if table if not exists
+	// Convert the columns slice to a comma-separated string
+	cols := strings.Join(columns, ", ")
+
+	// Prepare the SQL statement
+	sqlStatement := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (%s);`, tableName, cols)
+
+	// Execute the SQL statement
+	_, err := conn.Exec(context.Background(), sqlStatement)
+	if err != nil {
+			return err
+	}
+
+	return nil
+}
+
 func init() {
 	godotenv.Load(".env")
 	fmt.Println("Reading .env file")
@@ -56,8 +73,6 @@ func init() {
 		os.Exit(1)
 	}
 	defer conn.Close(context.Background())
-
-	fmt.Println(greeting)
 
 }
 
