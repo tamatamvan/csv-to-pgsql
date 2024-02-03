@@ -17,6 +17,7 @@ import (
 
 var db *pgx.Conn
 
+// list all csv files in a directory
 func getCSVsFromDir(dir string) []fs.DirEntry {
 	files, err := os.ReadDir(dir)
 	if err != nil {
@@ -24,6 +25,8 @@ func getCSVsFromDir(dir string) []fs.DirEntry {
 	}
 	return files
 }
+
+// infer data and create tables based on csv data accordingly
 
 func inferDataType(data string) string {
 	if _, err := strconv.ParseInt(data, 10, 64); err == nil {
@@ -72,12 +75,15 @@ func createTable(csvContent CSVContent) {
 
 }
 
+// CSVContent struct
 type CSVContent struct {
 	TableName string
 	Columns   []string
 	Data      [][]string
 }
 
+// read all csv files in a directory
+// and return the content of the csv files
 func readCSVinDir(dir string) []CSVContent {
 	csvFiles := getCSVsFromDir(dir)
 	var csvContents []CSVContent
@@ -110,6 +116,43 @@ func readCSVinDir(dir string) []CSVContent {
 	return csvContents
 }
 
+func mapValuesToSQLRows(data [][]string) string {
+	var rows []string
+	for _, row := range data {
+		var rowVals []string
+		for _, value := range row {
+			if inferDataType(value) == "int" || inferDataType(value) == "decimal(10,2)" {
+				// value is a number, don't add quotes
+				rowVals = append(rowVals, value)
+			} else if inferDataType(value) == "text[]" {
+				val := strings.Replace(value, "[", "'{", -1)
+				val = strings.Replace(val, "]", "}'", -1)
+				rowVals = append(rowVals, val)
+			} else {
+				// value is not a number, add quotes
+				rowVals = append(rowVals, "'"+value+"'")
+			}
+		}
+		rows = append(rows, "("+strings.Join(rowVals, ",")+")")
+	}
+	return strings.Join(rows, ",")
+}
+
+func insertData(csvContent CSVContent) {
+	// Prepare the SQL statement
+	valuesSQLRows := mapValuesToSQLRows(csvContent.Data)
+	fmt.Println(valuesSQLRows)
+	sqlStatement := fmt.Sprintf(`INSERT INTO %s values %s;`, csvContent.TableName, valuesSQLRows)
+
+	fmt.Println(sqlStatement)
+	// Execute the SQL statement
+	_, err := db.Exec(context.Background(), sqlStatement)
+	if err != nil {
+		log.Fatal(err)
+		os.Exit(2)
+	}
+}
+
 func init() {
 	godotenv.Load(".env")
 	fmt.Println("Reading .env file")
@@ -120,8 +163,6 @@ func init() {
 		os.Exit(1)
 	}
 	db = conn
-	// defer db.Close(context.Background())
-
 }
 
 func main() {
@@ -134,7 +175,12 @@ func main() {
 	csvContents := readCSVinDir(dir)
 
 	for _, csvContent := range csvContents {
-		fmt.Println("Table Name: ", csvContent.TableName)
+		fmt.Println("Creating table for Table Name: ", csvContent.TableName)
 		createTable(csvContent)
+	}
+
+	for _, csvContent := range csvContents {
+		fmt.Println("Bulk inserting data to table: ", csvContent.TableName)
+		insertData(csvContent)
 	}
 }
